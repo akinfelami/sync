@@ -123,13 +123,6 @@ func getDaylist(c *gin.Context) {
 		return
 	}
 
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"message": "Internal Server Error",
-		})
-		log.Println(err)
-		return
-	}
 	var playlist Playlist
 	for _, item := range response.Items {
 		var artists []string
