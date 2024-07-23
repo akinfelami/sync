@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"regexp"
 	"sync"
 
 	"github.com/gin-gonic/gin"
@@ -80,10 +81,39 @@ func authRedirectHandler(c *gin.Context) {
 	})
 }
 
-func getPlaylists(c *gin.Context) {
+func getPlaylists(c *gin.Context) spotify.ID {
+
+	client := getClient()
+	response, err := client.CurrentUsersPlaylists(context.Background(), spotify.Limit(50))
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"message": "Internal Server Error",
+		})
+		log.Println(err)
+	}
+	for _, playlist := range response.Playlists {
+		name := playlist.Name
+		if match := regexp.MustCompile(`^daylist\s*\W\s*.*$`); match.MatchString(name) {
+			return playlist.ID
+		}
+	}
+	return ""
+}
+
+func getDaylist(c *gin.Context) {
+
 	client := getClient()
 
-	response, err := client.GetPlaylistItems(context.Background(), "37i9dQZF1EP6YuccBxUcC1")
+	playlistID := getPlaylists(c)
+	if playlistID == "" {
+		c.JSON(http.StatusOK, gin.H{
+			"message": "Sorry, We couldn't find a daylist playlist",
+		})
+		return
+	}
+
+	response, err := client.GetPlaylistItems(context.Background(), playlistID)
 
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -129,7 +159,7 @@ func main() {
 	})
 
 	r.GET("/callback", authRedirectHandler)
-	r.GET("/playlists", authMiddleware(), getPlaylists)
+	r.GET("/daylist", authMiddleware(), getDaylist)
 
 	url := auth.AuthURL(state)
 	fmt.Println("Please log in to Spotify by visiting the following page in your browser:\n\n", url)
