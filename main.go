@@ -8,11 +8,21 @@ import (
 	"sync"
 
 	"github.com/gin-gonic/gin"
+	"github.com/skratchdot/open-golang/open"
 	"github.com/zmb3/spotify/v2"
 	spotifyauth "github.com/zmb3/spotify/v2/auth"
 
 	_ "github.com/joho/godotenv/autoload"
 )
+
+type Playlist struct {
+	Tracks []Track
+}
+
+type Track struct {
+	Artists []string
+	Title   string
+}
 
 const redirectURI = "http://localhost:8080/callback"
 
@@ -72,7 +82,9 @@ func authRedirectHandler(c *gin.Context) {
 
 func getPlaylists(c *gin.Context) {
 	client := getClient()
-	playlists, err := client.CurrentUsersPlaylists(context.Background())
+
+	response, err := client.GetPlaylistItems(context.Background(), "37i9dQZF1EP6YuccBxUcC1")
+
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"message": "Internal Server Error",
@@ -81,9 +93,28 @@ func getPlaylists(c *gin.Context) {
 		return
 	}
 
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"message": "Internal Server Error",
+		})
+		log.Println(err)
+		return
+	}
+	var playlist Playlist
+	for _, item := range response.Items {
+		var artists []string
+		for _, artist := range item.Track.Track.Artists {
+			artists = append(artists, artist.Name)
+		}
+		playlist.Tracks = append(playlist.Tracks, Track{
+			Title:   item.Track.Track.Name,
+			Artists: artists,
+		})
+	}
+
 	c.JSON(200, gin.H{
 		"message": "success",
-		"data":    playlists,
+		"data":    playlist,
 	})
 }
 
@@ -102,6 +133,8 @@ func main() {
 
 	url := auth.AuthURL(state)
 	fmt.Println("Please log in to Spotify by visiting the following page in your browser:\n\n", url)
+
+	open.Start(url)
 
 	err := r.Run(":8080")
 	if err != nil {
